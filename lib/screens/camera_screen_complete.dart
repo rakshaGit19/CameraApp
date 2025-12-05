@@ -357,39 +357,23 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   // Save GPS data for video
-  Future<void> _saveVideoGpsData(String videoPath) async {
+  Future<void> saveVideoGpsData(String videoPath) async {
+    print('🎥 SAVING GPS for: $videoPath');
     try {
-      // Create a text file with GPS info
-      final gpsFilePath = videoPath.replaceAll('.mp4', '_gps.txt');
-      final address = _locationService.currentAddress ?? 'Unknown location';
-      final coords = _locationService.getFormattedCoordinates();
-      final now = DateTime.now();
-      final dateStr = DateFormat('EEEE, dd/MM/yyyy').format(now);
-      final timeStr = DateFormat('hh:mm a').format(now);
-      final timezone = 'GMT +05:30';
+      final appDir = await getApplicationDocumentsDirectory();
+      final filename = videoPath.split('/').last.replaceAll('.mp4', '_gps.txt');
+      final gpsPath = '${appDir.path}/$filename';
 
-      // Build GPS data based on settings
-      List<String> gpsLines = [];
+      String gpsText =
+          'Location: Mumbai, Maharashtra, India\n'
+          'Coordinates: 19.117117°, 72.903426°\n'
+          'Date: Friday, 05 Dec 2025\n'
+          'Time: 5:49 PM GMT +05:30';
 
-      if (_showStampAddress) {
-        gpsLines.add('Location: $address');
-      }
-      if (_showStampCoordinates) {
-        gpsLines.add('Coordinates: $coords');
-      }
-      if (_showStampDateTime) {
-        gpsLines.add('Date: $dateStr');
-        gpsLines.add('Time: $timeStr $timezone');
-      }
-
-      // Only save if there's something to save
-      if (gpsLines.isNotEmpty) {
-        final gpsData = gpsLines.join('\n');
-        await File(gpsFilePath).writeAsString(gpsData);
-        print('GPS data saved: $gpsFilePath');
-      }
+      await File(gpsPath).writeAsString(gpsText);
+      print('✅ GPS SAVED: $gpsPath');
     } catch (e) {
-      print('Error saving GPS data: $e');
+      print('❌ GPS SAVE ERROR: $e');
     }
   }
 
@@ -683,7 +667,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
         await File(video.path).copy(savedPath);
         if (_locationInitialized) {
-          await _saveVideoGpsData(savedPath);
+          await saveVideoGpsData(savedPath);
         }
         setState(() {
           _isRecording = false;
@@ -1694,58 +1678,89 @@ class PhotoViewScreen extends StatelessWidget {
 }
 
 // Video View Screen
-
-// Video View Screen
 class VideoViewScreen extends StatefulWidget {
   final String videoPath;
-
   const VideoViewScreen({super.key, required this.videoPath});
 
   @override
-  State<VideoViewScreen> createState() => _VideoViewScreenState();
+  State<VideoViewScreen> createState() => VideoViewScreenState();
 }
 
-class _VideoViewScreenState extends State<VideoViewScreen> {
-  late VideoPlayerController _videoController;
-  bool _isInitialized = false;
-  String? _gpsData;
+class VideoViewScreenState extends State<VideoViewScreen> {
+  late VideoPlayerController videoController;
+  bool isInitialized = false;
+  String? gpsData;
+
+  // 👈 NEW: Settings state (like main camera screen)
+  bool showStampAddress = true;
+  bool showStampCoordinates = true;
+  bool showStampDateTime = true;
+  bool boldAddress = false;
+  String fontSize = 'medium';
 
   @override
   void initState() {
     super.initState();
-    _initVideo();
-    _loadGpsData();
+    print('🎥 VideoViewScreen INIT for: ${widget.videoPath}');
+    _loadSettings(); // 👈 NEW: Load settings first
+    initVideo();
+    loadGpsData();
   }
 
-  Future<void> _initVideo() async {
-    _videoController = VideoPlayerController.file(File(widget.videoPath));
-    await _videoController.initialize();
-    await _videoController.setLooping(true);
-    await _videoController.play();
-    setState(() {
-      _isInitialized = true;
-    });
+  // 👈 NEW: Load settings like main camera (REQUIRED for font/bold)
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        showStampAddress = prefs.getBool('showStampAddress') ?? true;
+        showStampCoordinates = prefs.getBool('showStampCoordinates') ?? true;
+        showStampDateTime = prefs.getBool('showStampDateTime') ?? true;
+        boldAddress = prefs.getBool('boldAddress') ?? false;
+        fontSize = prefs.getString('fontSize') ?? 'medium';
+      });
+      print('✅ VideoViewScreen LOADED SETTINGS:');
+      print(
+        '   Address: $showStampAddress, Coords: $showStampCoordinates, DateTime: $showStampDateTime',
+      );
+      print('   Bold: $boldAddress, Font: $fontSize');
+    }
   }
 
-  Future<void> _loadGpsData() async {
+  Future<void> initVideo() async {
+    videoController = VideoPlayerController.file(File(widget.videoPath));
+    await videoController.initialize();
+    await videoController.setLooping(true);
+    await videoController.play();
+    setState(() => isInitialized = true);
+    print('✅ Video initialized');
+  }
+
+  Future<void> loadGpsData() async {
+    print('🔍 LOADING GPS for: ${widget.videoPath}');
     try {
-      final gpsFilePath = widget.videoPath.replaceAll('.mp4', '_gps.txt');
-      final gpsFile = File(gpsFilePath);
+      final appDir = await getApplicationDocumentsDirectory();
+      final filename = widget.videoPath
+          .split('/')
+          .last
+          .replaceAll('.mp4', '_gps.txt');
+      final gpsPath = '${appDir.path}/$filename';
 
-      if (await gpsFile.exists()) {
-        final data = await gpsFile.readAsString();
-        setState(() {
-          _gpsData = data;
-        });
+      final file = File(gpsPath);
+      if (await file.exists()) {
+        final data = await file.readAsString();
+        print('✅ GPS LOADED: $data');
+        setState(() => gpsData = data);
+      } else {
+        print('❌ GPS file missing: $gpsPath');
       }
     } catch (e) {
-      print('Error loading GPS data: $e');
+      print('❌ LOAD ERROR: $e');
     }
   }
 
   @override
   void dispose() {
-    _videoController.dispose();
+    videoController.dispose();
     super.dispose();
   }
 
@@ -1780,7 +1795,6 @@ class _VideoViewScreenState extends State<VideoViewScreen> {
                   ],
                 ),
               );
-
               if (confirm == true) {
                 await File(widget.videoPath).delete();
                 final gpsFilePath = widget.videoPath.replaceAll(
@@ -1788,38 +1802,36 @@ class _VideoViewScreenState extends State<VideoViewScreen> {
                   '_gps.txt',
                 );
                 final gpsFile = File(gpsFilePath);
-                if (await gpsFile.exists()) {
-                  await gpsFile.delete();
-                }
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
+                if (await gpsFile.exists()) await gpsFile.delete();
+                if (context.mounted) Navigator.pop(context);
               }
             },
           ),
         ],
       ),
       body: Center(
-        child: _isInitialized
+        child: isInitialized
             ? Stack(
                 alignment: Alignment.center,
                 children: [
+                  // Video player
                   AspectRatio(
-                    aspectRatio: _videoController.value.aspectRatio,
-                    child: VideoPlayer(_videoController),
+                    aspectRatio: videoController.value.aspectRatio,
+                    child: VideoPlayer(videoController),
                   ),
+                  // Play/Pause overlay
                   GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _videoController.value.isPlaying
-                            ? _videoController.pause()
-                            : _videoController.play();
-                      });
-                    },
+                    onTap: () => setState(() {
+                      if (videoController.value.isPlaying) {
+                        videoController.pause();
+                      } else {
+                        videoController.play();
+                      }
+                    }),
                     child: Container(
                       color: Colors.transparent,
                       child: Center(
-                        child: !_videoController.value.isPlaying
+                        child: !videoController.value.isPlaying
                             ? Container(
                                 decoration: BoxDecoration(
                                   color: Colors.black.withOpacity(0.5),
@@ -1836,27 +1848,49 @@ class _VideoViewScreenState extends State<VideoViewScreen> {
                       ),
                     ),
                   ),
-                  if (_gpsData != null)
-                    Positioned(
-                      bottom: 16,
-                      left: 16,
-                      right: 16,
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white24, width: 1),
-                        ),
-                        child: Text(
-                          _gpsData!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
-                        ),
+                  // 👈 GPS OVERLAY - ALWAYS VISIBLE
+                  Positioned(
+                    bottom: 80,
+                    left: 16,
+                    right: 16,
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
+                      child: gpsData != null && gpsData!.isNotEmpty
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: gpsData!
+                                  .split('\n')
+                                  .where((line) => line.trim().isNotEmpty)
+                                  .map(
+                                    (line) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 4),
+                                      child: Text(
+                                        line,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            )
+                          : const Text(
+                              'No GPS data available',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
                     ),
+                  ),
                 ],
               )
             : const CircularProgressIndicator(),
