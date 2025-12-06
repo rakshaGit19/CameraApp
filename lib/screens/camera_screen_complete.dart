@@ -358,9 +358,16 @@ class _CameraScreenState extends State<CameraScreen> {
 
   // Save GPS data for video
   Future<void> _saveVideoGpsData(String videoPath) async {
+    print('💾 SAVING GPS for video: $videoPath');
     try {
-      // Create a text file with GPS info
-      final gpsFilePath = videoPath.replaceAll('.mp4', '_gps.txt');
+      // ✅ Extract just the filename
+      final videoFilename = videoPath.split('/').last;
+
+      // ✅ Save GPS to app directory (ALWAYS writable)
+      final appDir = await getApplicationDocumentsDirectory();
+      final gpsFilePath =
+          '${appDir.path}/${videoFilename.replaceAll('.mp4', '_gps.txt')}';
+
       final address = _locationService.currentAddress ?? 'Unknown location';
       final coords = _locationService.getFormattedCoordinates();
       final now = DateTime.now();
@@ -368,28 +375,22 @@ class _CameraScreenState extends State<CameraScreen> {
       final timeStr = DateFormat('hh:mm a').format(now);
       final timezone = 'GMT +05:30';
 
-      // Build GPS data based on settings
       List<String> gpsLines = [];
-
-      if (_showStampAddress) {
-        gpsLines.add('Location: $address');
-      }
-      if (_showStampCoordinates) {
-        gpsLines.add('Coordinates: $coords');
-      }
+      if (_showStampAddress) gpsLines.add('Location: $address');
+      if (_showStampCoordinates) gpsLines.add('Coordinates: $coords');
       if (_showStampDateTime) {
         gpsLines.add('Date: $dateStr');
         gpsLines.add('Time: $timeStr $timezone');
       }
 
-      // Only save if there's something to save
       if (gpsLines.isNotEmpty) {
         final gpsData = gpsLines.join('\n');
         await File(gpsFilePath).writeAsString(gpsData);
-        print('GPS data saved: $gpsFilePath');
+        print('✅ GPS SAVED: $gpsFilePath');
+        print('📄 Content: $gpsData');
       }
     } catch (e) {
-      print('Error saving GPS data: $e');
+      print('❌ GPS SAVE ERROR: $e');
     }
   }
 
@@ -1728,18 +1729,34 @@ class _VideoViewScreenState extends State<VideoViewScreen> {
   }
 
   Future<void> _loadGpsData() async {
+    print('🔍 LOADING GPS for: ${widget.videoPath}');
     try {
-      final gpsFilePath = widget.videoPath.replaceAll('.mp4', '_gps.txt');
-      final gpsFile = File(gpsFilePath);
+      final videoFilename = widget.videoPath.split('/').last;
 
-      if (await gpsFile.exists()) {
-        final data = await gpsFile.readAsString();
-        setState(() {
-          _gpsData = data;
-        });
+      // ✅ Check app directory first
+      final appDir = await getApplicationDocumentsDirectory();
+      final appGpsPath =
+          '${appDir.path}/${videoFilename.replaceAll('.mp4', '_gps.txt')}';
+      final appFile = File(appGpsPath);
+
+      print('📁 App GPS: $appGpsPath exists: ${await appFile.exists()}');
+      if (await appFile.exists()) {
+        final data = await appFile.readAsString();
+        print('✅ GPS LOADED: $data');
+        setState(() => _gpsData = data);
+        return;
+      }
+
+      final dcimPath = widget.videoPath.replaceAll('.mp4', '_gps.txt');
+      final dcimFile = File(dcimPath);
+      if (await dcimFile.exists()) {
+        final data = await dcimFile.readAsString();
+        setState(() => _gpsData = data);
+      } else {
+        print('❌ No GPS file found');
       }
     } catch (e) {
-      print('Error loading GPS data: $e');
+      print('❌ LOAD ERROR: $e');
     }
   }
 
