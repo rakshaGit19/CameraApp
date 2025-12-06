@@ -6,22 +6,24 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import './settings_screen.dart'; // add this
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image/image.dart' as img;
 //import 'package:http/http.dart' as http;
 import '../services/location_service.dart';
+import '../providers/settings_provider.dart';
+import '../providers/location_provider.dart';
 
 enum CameraMode { photo, video }
 
-class CameraScreen extends StatefulWidget {
+class CameraScreen extends ConsumerStatefulWidget {
   const CameraScreen({super.key});
 
   @override
-  State<CameraScreen> createState() => _CameraScreenState();
+  ConsumerState<CameraScreen> createState() => _CameraScreenState(); // CHANGED
 }
 
-class _CameraScreenState extends State<CameraScreen> {
+class _CameraScreenState extends ConsumerState<CameraScreen> {
   CameraController? _controller;
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
@@ -42,12 +44,6 @@ class _CameraScreenState extends State<CameraScreen> {
   double _maxExposure = 4.0;
   double _selectedZoomLevel = 1.0;
 
-  bool _showStampAddress = true;
-  bool _showStampCoordinates = true;
-  bool _showStampDateTime = true;
-
-  bool _boldAddress = false;
-  String _fontSize = 'medium';
   // Video Recording
   bool _isRecording = false;
   Duration _recordingDuration = Duration.zero;
@@ -63,45 +59,13 @@ class _CameraScreenState extends State<CameraScreen> {
   Directory? _cameraDirectory;
 
   // Location
-  final LocationService _locationService = LocationService();
-  bool _showLocationBar = true; // Toggle visibility
-  bool _locationInitialized = false;
+  bool _showLocationBar = true;
 
   @override
   void initState() {
     super.initState();
     _initCamera();
     _setupCameraDirectory();
-    _initLocation();
-    _loadSettings();
-  }
-
-  Future<void> _initLocation() async {
-    print('🔍 Starting location initialization...');
-
-    try {
-      final success = await _locationService.getCurrentLocation();
-
-      print(' Location success: $success');
-      print(' Position: ${_locationService.currentPosition}');
-      print(' Address: ${_locationService.currentAddress}');
-      print(' Coordinates: ${_locationService.getFormattedCoordinates()}');
-
-      if (mounted) {
-        setState(() {
-          _locationInitialized = success;
-        });
-      }
-
-      print(' Location initialized: $_locationInitialized');
-    } catch (e) {
-      print(' Location error: $e');
-      if (mounted) {
-        setState(() {
-          _locationInitialized = false;
-        });
-      }
-    }
   }
 
   Future<void> _setupCameraDirectory() async {
@@ -142,8 +106,11 @@ class _CameraScreenState extends State<CameraScreen> {
       img.Image? originalImage = img.decodeImage(bytes);
       if (originalImage == null) return imageFile;
 
-      // Get location info
-      final address = _locationService.currentAddress ?? 'Unknown location';
+      // Get location + settings from Riverpod
+      final settings = ref.read(SettingsNotifier.provider);
+      final locationState = ref.read(LocationNotifier.provider);
+
+      final address = locationState.address ?? 'Unknown location';
       final now = DateTime.now();
       final dateStr = DateFormat('EEEE, dd/MM/yyyy').format(now);
       final timeStr = DateFormat('hh:mm a').format(now);
@@ -155,7 +122,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
       // Map Flutter font selection to image-text pixel size
       int fontPixel;
-      switch (_fontSize) {
+      switch (settings.fontSize) {
         case 'small':
           fontPixel = 14;
           break;
@@ -202,23 +169,20 @@ class _CameraScreenState extends State<CameraScreen> {
       // Collect stamp lines (wrapped)
       final List<String> stampLines = [];
 
-      if (_showStampAddress) {
+      if (settings.showStampAddress) {
         stampLines.addAll(
           wrapByPixelWidth(address, maxPixelWidth, approxCharWidth),
         );
       }
 
-      if (_showStampCoordinates) {
-        final coords =
-            "Lat: ${_locationService.currentPosition?.latitude?.toStringAsFixed(6) ?? 'N/A'}   "
-            "Long: ${_locationService.currentPosition?.longitude?.toStringAsFixed(6) ?? 'N/A'}";
-
+      if (settings.showStampCoordinates) {
+        final coords = locationState.formattedCoordinates ?? 'N/A';
         stampLines.addAll(
           wrapByPixelWidth(coords, maxPixelWidth, approxCharWidth),
         );
       }
 
-      if (_showStampDateTime) {
+      if (settings.showStampDateTime) {
         final dt = "$dateStr $timeStr $timezone";
         stampLines.addAll(wrapByPixelWidth(dt, maxPixelWidth, approxCharWidth));
       }
@@ -271,7 +235,7 @@ class _CameraScreenState extends State<CameraScreen> {
         maxPixelWidth,
         approxCharWidth,
       );
-      final int addressLineCount = _showStampAddress
+      final int addressLineCount = settings.showStampAddress
           ? addressWrapped.length
           : 0;
 
@@ -279,9 +243,10 @@ class _CameraScreenState extends State<CameraScreen> {
       for (int i = 0; i < stampLines.length; i++) {
         final line = stampLines[i];
 
-        final bool isAddressLine = i < addressLineCount && _showStampAddress;
+        final bool isAddressLine =
+            i < addressLineCount && settings.showStampAddress;
 
-        if (isAddressLine && _boldAddress) {
+        if (isAddressLine && settings.boldAddress) {
           _drawBoldString(
             finalImage,
             line,
@@ -304,7 +269,7 @@ class _CameraScreenState extends State<CameraScreen> {
         yPosition += lineHeight;
       }
 
-      //WATERMARK
+      // WATERMARK
       final watermark = "RV";
 
       // Approximate text width (Arial 14)
@@ -358,27 +323,31 @@ class _CameraScreenState extends State<CameraScreen> {
 
   // Save GPS data for video
   Future<void> _saveVideoGpsData(String videoPath) async {
-    print('💾 SAVING GPS for video: $videoPath');
+    print(' SAVING GPS for video: $videoPath');
     try {
-      // ✅ Extract just the filename
+      // Get settings and location from Riverpod
+      final settings = ref.read(SettingsNotifier.provider);
+      final locationState = ref.read(LocationNotifier.provider);
+
+      // Extract just the filename
       final videoFilename = videoPath.split('/').last;
 
-      // ✅ Save GPS to app directory (ALWAYS writable)
+      // Save GPS to app directory (ALWAYS writable)
       final appDir = await getApplicationDocumentsDirectory();
       final gpsFilePath =
           '${appDir.path}/${videoFilename.replaceAll('.mp4', '_gps.txt')}';
 
-      final address = _locationService.currentAddress ?? 'Unknown location';
-      final coords = _locationService.getFormattedCoordinates();
+      final address = locationState.address ?? 'Unknown location';
+      final coords = locationState.formattedCoordinates ?? 'N/A';
       final now = DateTime.now();
       final dateStr = DateFormat('EEEE, dd/MM/yyyy').format(now);
       final timeStr = DateFormat('hh:mm a').format(now);
       final timezone = 'GMT +05:30';
 
       List<String> gpsLines = [];
-      if (_showStampAddress) gpsLines.add('Location: $address');
-      if (_showStampCoordinates) gpsLines.add('Coordinates: $coords');
-      if (_showStampDateTime) {
+      if (settings.showStampAddress) gpsLines.add('Location: $address');
+      if (settings.showStampCoordinates) gpsLines.add('Coordinates: $coords');
+      if (settings.showStampDateTime) {
         gpsLines.add('Date: $dateStr');
         gpsLines.add('Time: $timeStr $timezone');
       }
@@ -386,11 +355,11 @@ class _CameraScreenState extends State<CameraScreen> {
       if (gpsLines.isNotEmpty) {
         final gpsData = gpsLines.join('\n');
         await File(gpsFilePath).writeAsString(gpsData);
-        print('✅ GPS SAVED: $gpsFilePath');
-        print('📄 Content: $gpsData');
+        print(' GPS SAVED: $gpsFilePath');
+        print(' Content: $gpsData');
       }
     } catch (e) {
-      print('❌ GPS SAVE ERROR: $e');
+      print(' GPS SAVE ERROR: $e');
     }
   }
 
@@ -640,7 +609,8 @@ class _CameraScreenState extends State<CameraScreen> {
       await File(image.path).copy(savedPath);
 
       // Add GPS overlay if location is available
-      if (_locationInitialized) {
+      final locationState = ref.read(LocationNotifier.provider);
+      if (locationState.isInitialized) {
         await _addGpsOverlay(File(savedPath));
       }
 
@@ -657,7 +627,7 @@ class _CameraScreenState extends State<CameraScreen> {
           action: SnackBarAction(
             label: 'View',
             textColor: Colors.white,
-            onPressed: () => _viewMedia(savedPath), // ← With underscore
+            onPressed: () => _viewMedia(savedPath),
           ),
         ),
       );
@@ -683,9 +653,12 @@ class _CameraScreenState extends State<CameraScreen> {
         final savedPath = '${_cameraDirectory!.path}/$filename';
 
         await File(video.path).copy(savedPath);
-        if (_locationInitialized) {
+
+        final locationState = ref.read(LocationNotifier.provider);
+        if (locationState.isInitialized) {
           await _saveVideoGpsData(savedPath);
         }
+
         setState(() {
           _isRecording = false;
           _recordingDuration = Duration.zero;
@@ -793,7 +766,6 @@ class _CameraScreenState extends State<CameraScreen> {
         onScaleStart: (_) {},
         onScaleUpdate: (details) => _setZoom(_currentZoom * details.scale),
         onScaleEnd: (_) {},
-
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -802,8 +774,7 @@ class _CameraScreenState extends State<CameraScreen> {
             if (_isRecording) _buildRecordingIndicator(),
             if (_countdown > 0) _buildTimerCountdown(),
             _buildExposureSlider(),
-            _buildGridOverlay(), // ← ADD THIS
-
+            _buildGridOverlay(),
             _buildBottomControls(),
             _buildZoomButtons(),
             _buildLocationBar(),
@@ -879,6 +850,8 @@ class _CameraScreenState extends State<CameraScreen> {
 
   // NEW - GPS Camera style top controls
   Widget _buildTopControls() {
+    final locationState = ref.watch(LocationNotifier.provider); // NEW
+
     return Positioned(
       top: 0,
       left: 0,
@@ -995,6 +968,7 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
 
             // Settings - navigate to SettingsScreen
+            // Settings - navigate to SettingsScreen
             _buildTopIconButton(
               icon: Icons.settings,
               color: Colors.white,
@@ -1006,16 +980,19 @@ class _CameraScreenState extends State<CameraScreen> {
                           builder: (context) => const SettingsScreen(),
                         ),
                       );
-                      await _loadSettings();
-                      setState(() {});
+                      // No need to reload settings; provider handles it
+                      setState(() {}); // optional, can remove later
                     }
                   : null,
             ),
 
             // Location toggle
+            // Location toggle
             _buildTopIconButton(
               icon: _showLocationBar ? Icons.location_on : Icons.location_off,
-              color: _locationInitialized ? Colors.amber : Colors.white70,
+              color: locationState.isInitialized
+                  ? Colors.amber
+                  : Colors.white70,
               onPressed: () {
                 setState(() => _showLocationBar = !_showLocationBar);
               },
@@ -1173,8 +1150,12 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Widget _buildLocationBar() {
-    print('📍 LOCATION BAR BUILD - BoldAddress: $_boldAddress');
-    if (!_showLocationBar || !_locationInitialized) {
+    final settings = ref.watch(SettingsNotifier.provider);
+    final locationState = ref.watch(LocationNotifier.provider);
+
+    print('LOCATION BAR BUILD - BoldAddress: ${settings.boldAddress}');
+
+    if (!_showLocationBar || !locationState.isInitialized) {
       return const SizedBox.shrink();
     }
 
@@ -1186,21 +1167,21 @@ class _CameraScreenState extends State<CameraScreen> {
     List<Widget> infoWidgets = [];
 
     // Address (only if enabled)
-    if (_showStampAddress) {
+    if (settings.showStampAddress) {
       infoWidgets.add(
         Text(
-          _locationService.currentAddress ?? 'Getting address...',
+          locationState.address ?? 'Getting address...',
           style: TextStyle(
             color: Colors.white,
-            fontSize: _boldAddress ? 16.0 : 13.0, // 👈 BIGGER when bold
-            fontWeight: _boldAddress
+            fontSize: settings.boldAddress ? 16.0 : 13.0,
+            fontWeight: settings.boldAddress
                 ? FontWeight.w900
-                : FontWeight.normal, // 👈 HEAVIER
-            shadows: _boldAddress
-                ? [
+                : FontWeight.normal,
+            shadows: settings.boldAddress
+                ? const [
                     Shadow(
                       color: Colors.black87,
-                      offset: const Offset(1.5, 1.5), // 👈 THICK SHADOW
+                      offset: Offset(1.5, 1.5),
                       blurRadius: 3,
                     ),
                   ]
@@ -1214,7 +1195,7 @@ class _CameraScreenState extends State<CameraScreen> {
     }
 
     // GPS Coordinates (only if enabled)
-    if (_showStampCoordinates) {
+    if (settings.showStampCoordinates) {
       infoWidgets.add(
         Row(
           children: [
@@ -1222,7 +1203,7 @@ class _CameraScreenState extends State<CameraScreen> {
             const SizedBox(width: 4),
             Expanded(
               child: Text(
-                _locationService.getFormattedCoordinates(),
+                locationState.formattedCoordinates ?? 'Getting location...',
                 style: const TextStyle(color: Colors.white70, fontSize: 11),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1235,10 +1216,10 @@ class _CameraScreenState extends State<CameraScreen> {
     }
 
     // Date & Time (only if enabled)
-    if (_showStampDateTime) {
+    if (settings.showStampDateTime) {
       infoWidgets.add(
         Text(
-          '$dateStr $timeStr',
+          '$dateStr  $timeStr',
           style: const TextStyle(color: Colors.white60, fontSize: 11),
         ),
       );
@@ -1297,9 +1278,8 @@ class _CameraScreenState extends State<CameraScreen> {
     );
   }
 
-  // NEW - GPS Camera style exposure slider
+  // exposure slider
   Widget _buildExposureSlider() {
-    // ✅ This line should check ONLY _isInitialized
     if (!_isInitialized) {
       return const SizedBox.shrink();
     }
@@ -1487,29 +1467,7 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _showStampAddress = prefs.getBool('showStampAddress') ?? true;
-        _showStampCoordinates = prefs.getBool('showStampCoordinates') ?? true;
-        _showStampDateTime = prefs.getBool('showStampDateTime') ?? true;
-        _boldAddress = prefs.getBool('boldAddress') ?? false;
-        _fontSize = prefs.getString('fontSize') ?? 'medium';
-      });
-
-      // DEBUG: Print loaded settings
-      print('📋 LOADED SETTINGS:');
-      print('   Address: $_showStampAddress');
-      print('   Coordinates: $_showStampCoordinates');
-      print('   DateTime: $_showStampDateTime');
-      print('   Bold Address: $_boldAddress');
-      print('   Font Size: $_fontSize');
-    }
-  }
-
   // BOLD helper method
-  // BOLD helper method - 100% WORKING
   void _drawBoldString(
     img.Image target,
     String text, {
@@ -1523,11 +1481,12 @@ class _CameraScreenState extends State<CameraScreen> {
     img.drawString(target, text, font: font, x: x, y: y + 1, color: color);
   }
 
-  // Font helper - 100% WORKING
   // Font helper - RENAME TO BREAK CACHE
+  // Font helper
   dynamic getFontSize() {
-    // 👈 RENAMED!
-    switch (_fontSize) {
+    final settings = ref.read(SettingsNotifier.provider);
+
+    switch (settings.fontSize) {
       case 'small':
         return img.arial14;
       case 'large':

@@ -1,72 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/settings_provider.dart'; // NEW IMPORT
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerWidget {
+  // CHANGED: ConsumerWidget
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  // Settings state
-  bool _showStampAddress = true;
-  bool _showStampCoordinates = true;
-  bool _showStampDateTime = true;
-  bool _boldAddress = false;
-  String _fontSize = 'medium';
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSettings();
-  }
-
-  // Load saved settings
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _showStampAddress = prefs.getBool('showStampAddress') ?? true;
-        _showStampCoordinates = prefs.getBool('showStampCoordinates') ?? true;
-        _showStampDateTime = prefs.getBool('showStampDateTime') ?? true;
-        _boldAddress = prefs.getBool('boldAddress') ?? false;
-        _fontSize = prefs.getString('fontSize') ?? 'medium'; // 👈 ADD THIS
-
-        _isLoading = false;
-      });
-      print('Settings Screen Loaded:');
-      print('   Address: $_showStampAddress');
-      print('   Coordinates: $_showStampCoordinates');
-      print('   DateTime: $_showStampDateTime');
-      print('   Bold Address: $_boldAddress');
-      print('   Font Size: $_fontSize'); // 👈 ADD THIS
-    }
-  }
-
-  // Save setting to SharedPreferences
-  Future<void> _updateSetting(String key, bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(key, value);
-    print('💾 Saved $key = $value');
-  }
-
-  // Save string setting to SharedPreferences (for font size)
-  Future<void> _updateStringSetting(String key, String value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, value);
-    print('💾 Saved $key = $value');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(SettingsNotifier.provider); // WATCH settings
+    final notifier = ref.read(SettingsNotifier.provider.notifier); // NOTIFIER
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -104,7 +47,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-
           SwitchListTile(
             title: const Text(
               'Show Address',
@@ -114,33 +56,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'City, State, Country',
               style: TextStyle(color: Colors.white70, fontSize: 14),
             ),
-            value: _showStampAddress,
+            value: settings.showStampAddress,
             activeColor: Colors.amber,
             onChanged: (value) {
-              setState(() => _showStampAddress = value);
-              _updateSetting('showStampAddress', value);
+              notifier.updateShowAddress(value); // RIVERPOD UPDATE
             },
           ),
-
           SwitchListTile(
             title: const Text(
               'Bold Address',
               style: TextStyle(color: Colors.white, fontSize: 16),
             ),
-
             subtitle: const Text(
               'Make address text thicker/bolder',
               style: TextStyle(color: Colors.white70, fontSize: 14),
             ),
-            value: _boldAddress,
+            value: settings.boldAddress,
             activeColor: Colors.amber,
             onChanged: (value) {
-              setState(() => _boldAddress = value);
-              _updateSetting('boldAddress', value);
+              notifier.updateBoldAddress(value); // RIVERPOD UPDATE
             },
           ),
-
-          // 👈 FONT SIZE SECTION 👇
+          // Font Size Section
           Container(
             padding: const EdgeInsets.all(16),
             margin: const EdgeInsets.only(top: 16),
@@ -167,7 +104,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-
           RadioListTile<String>(
             title: const Text('Small', style: TextStyle(color: Colors.white)),
             subtitle: const Text(
@@ -175,14 +111,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: Colors.white60),
             ),
             value: 'small',
-            groupValue: _fontSize,
+            groupValue: settings.fontSize,
             activeColor: Colors.amber,
             onChanged: (value) {
-              setState(() => _fontSize = value!);
-              _updateStringSetting('fontSize', value!);
+              notifier.updateFontSize(value!); // RIVERPOD UPDATE
             },
           ),
-
           RadioListTile<String>(
             title: const Text(
               'Medium',
@@ -196,14 +130,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: Colors.white60),
             ),
             value: 'medium',
-            groupValue: _fontSize,
+            groupValue: settings.fontSize,
             activeColor: Colors.amber,
             onChanged: (value) {
-              setState(() => _fontSize = value!);
-              _updateStringSetting('fontSize', value!);
+              notifier.updateFontSize(value!); // RIVERPOD UPDATE
             },
           ),
-
           RadioListTile<String>(
             title: const Text('Large', style: TextStyle(color: Colors.white)),
             subtitle: const Text(
@@ -211,15 +143,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: TextStyle(color: Colors.white60),
             ),
             value: 'large',
-            groupValue: _fontSize,
+            groupValue: settings.fontSize,
             activeColor: Colors.amber,
             onChanged: (value) {
-              setState(() => _fontSize = value!);
-              _updateStringSetting('fontSize', value!);
+              notifier.updateFontSize(value!); // RIVERPOD UPDATE
             },
           ),
-
-          // 👈 FONT SIZE SECTION ENDS 👆
           SwitchListTile(
             title: const Text(
               'Show GPS Coordinates',
@@ -229,14 +158,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Latitude, Longitude',
               style: TextStyle(color: Colors.white70, fontSize: 14),
             ),
-            value: _showStampCoordinates,
+            value: settings.showStampCoordinates,
             activeColor: Colors.amber,
             onChanged: (value) {
-              setState(() => _showStampCoordinates = value);
-              _updateSetting('showStampCoordinates', value);
+              notifier.updateShowCoordinates(value); // RIVERPOD UPDATE
             },
           ),
-
           SwitchListTile(
             title: const Text(
               'Show Date & Time',
@@ -246,16 +173,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               '2025-12-05 10:30 IST',
               style: TextStyle(color: Colors.white70, fontSize: 14),
             ),
-            value: _showStampDateTime,
+            value: settings.showStampDateTime,
             activeColor: Colors.amber,
             onChanged: (value) {
-              setState(() => _showStampDateTime = value);
-              _updateSetting('showStampDateTime', value);
+              notifier.updateShowDateTime(value); // RIVERPOD UPDATE
             },
           ),
-
           const SizedBox(height: 24),
-
           // Info Section
           Container(
             padding: const EdgeInsets.all(16),
