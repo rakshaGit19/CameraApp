@@ -1,40 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../providers/settings_provider.dart';
+import '../providers/settings_provider.dart'; // NEW IMPORT
 
 class SettingsScreen extends ConsumerWidget {
+  // CHANGED: ConsumerWidget
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(SettingsNotifier.provider);
-    final notifier = ref.read(SettingsNotifier.provider.notifier);
-
-    final List<String> fonts = [
-      'Montserrat',
-      'Playfair Display',
-      'Poppins',
-      'Inter',
-      'Raleway',
-    ];
-
-    TextStyle getFontStyle(String family) {
-      switch (family) {
-        case 'Montserrat':
-          return GoogleFonts.montserrat();
-        case 'Playfair Display':
-          return GoogleFonts.playfairDisplay();
-        case 'Poppins':
-          return GoogleFonts.poppins();
-        case 'Inter':
-          return GoogleFonts.inter();
-        case 'Raleway':
-          return GoogleFonts.raleway();
-        default:
-          return GoogleFonts.montserrat();
-      }
-    }
+    final settings = ref.watch(SettingsNotifier.provider); // WATCH settings
+    final notifier = ref.read(SettingsNotifier.provider.notifier); // NOTIFIER
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -84,7 +60,7 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.showStampAddress,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateShowAddress(value);
+              notifier.updateShowAddress(value); // RIVERPOD UPDATE
             },
           ),
           SwitchListTile(
@@ -99,70 +75,9 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.boldAddress,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateBoldAddress(value);
+              notifier.updateBoldAddress(value); // RIVERPOD UPDATE
             },
           ),
-
-          // FONT SELECTION (NEW)
-          Container(
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.only(top: 16),
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Font Style',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[800],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: settings.fontFamily,
-                      isExpanded: true,
-                      dropdownColor: Colors.grey[900],
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                      icon: const Icon(
-                        Icons.arrow_drop_down,
-                        color: Colors.amber,
-                      ),
-                      items: fonts.map((String font) {
-                        return DropdownMenuItem<String>(
-                          value: font,
-                          child: Text(
-                            font,
-                            style: getFontStyle(
-                              font,
-                            ).copyWith(color: Colors.white),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          notifier.updateFontFamily(newValue);
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
           // Font Size Section
           Container(
             padding: const EdgeInsets.all(16),
@@ -200,7 +115,7 @@ class SettingsScreen extends ConsumerWidget {
             groupValue: settings.fontSize,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateFontSize(value!);
+              notifier.updateFontSize(value!); // RIVERPOD UPDATE
             },
           ),
           RadioListTile<String>(
@@ -219,7 +134,7 @@ class SettingsScreen extends ConsumerWidget {
             groupValue: settings.fontSize,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateFontSize(value!);
+              notifier.updateFontSize(value!); // RIVERPOD UPDATE
             },
           ),
           RadioListTile<String>(
@@ -232,8 +147,106 @@ class SettingsScreen extends ConsumerWidget {
             groupValue: settings.fontSize,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateFontSize(value!);
+              notifier.updateFontSize(value!); // RIVERPOD UPDATE
             },
+          ),
+          // Font Family Section
+          Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(top: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey[900],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Font Style',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Choose stamp text font',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.grey[850],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber.withOpacity(0.3)),
+            ),
+            child: DropdownButton<String>(
+              value: settings.fontFamily,
+              isExpanded: true,
+              dropdownColor: Colors.grey[900],
+              underline: const SizedBox(),
+              icon: const Icon(Icons.arrow_drop_down, color: Colors.amber),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+              items: [
+                DropdownMenuItem(
+                  value: 'Montserrat',
+                  child: Text(
+                    'Montserrat',
+                    style: GoogleFonts.montserrat(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'Playfair Display',
+                  child: Text(
+                    'Playfair Display',
+                    style: GoogleFonts.playfairDisplay(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'Poppins',
+                  child: Text(
+                    'Poppins',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'Inter',
+                  child: Text(
+                    'Inter',
+                    style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'Raleway',
+                  child: Text(
+                    'Raleway',
+                    style: GoogleFonts.raleway(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  notifier.updateFontFamily(value);
+                }
+              },
+            ),
           ),
           SwitchListTile(
             title: const Text(
@@ -247,7 +260,7 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.showStampCoordinates,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateShowCoordinates(value);
+              notifier.updateShowCoordinates(value); // RIVERPOD UPDATE
             },
           ),
           SwitchListTile(
@@ -262,7 +275,7 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.showStampDateTime,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateShowDateTime(value);
+              notifier.updateShowDateTime(value); // RIVERPOD UPDATE
             },
           ),
           const SizedBox(height: 24),

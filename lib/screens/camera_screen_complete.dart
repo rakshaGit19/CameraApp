@@ -31,25 +31,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
   bool _showLocationBar = true;
   CameraMode _cameraMode = CameraMode.photo;
 
-  // track status changes for SnackBar
+  // To track status changes for SnackBar
   String? _lastStatusMessage;
-
-  TextStyle _getGoogleFont(String family) {
-    switch (family) {
-      case 'Montserrat':
-        return GoogleFonts.montserrat();
-      case 'Playfair Display':
-        return GoogleFonts.playfairDisplay();
-      case 'Poppins':
-        return GoogleFonts.poppins();
-      case 'Inter':
-        return GoogleFonts.inter();
-      case 'Raleway':
-        return GoogleFonts.raleway();
-      default:
-        return GoogleFonts.montserrat();
-    }
-  }
 
   @override
   void dispose() {
@@ -302,7 +285,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
                             .toggleFlash()
                       : null,
                 ),
-
+                // Dummy badge from original code (assuming logic wanted it)
+                // Keeping it static 1 for now as per original code seems hardcoded
                 Positioned(
                   right: 2,
                   top: 2,
@@ -734,14 +718,65 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
     final dateStr = DateFormat('MMM dd, yyyy').format(now);
     final timeStr = DateFormat('hh:mm a').format(now);
 
-    final baseStyle = _getGoogleFont(settings.fontFamily);
+    // Get the selected font family
+    TextStyle getTextStyle({
+      required Color color,
+      required double fontSize,
+      FontWeight? fontWeight,
+      List<Shadow>? shadows,
+    }) {
+      switch (settings.fontFamily) {
+        case 'Montserrat':
+          return GoogleFonts.montserrat(
+            color: color,
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            shadows: shadows,
+          );
+        case 'Playfair Display':
+          return GoogleFonts.playfairDisplay(
+            color: color,
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            shadows: shadows,
+          );
+        case 'Poppins':
+          return GoogleFonts.poppins(
+            color: color,
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            shadows: shadows,
+          );
+        case 'Inter':
+          return GoogleFonts.inter(
+            color: color,
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            shadows: shadows,
+          );
+        case 'Raleway':
+          return GoogleFonts.raleway(
+            color: color,
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            shadows: shadows,
+          );
+        default:
+          return GoogleFonts.montserrat(
+            color: color,
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            shadows: shadows,
+          );
+      }
+    }
 
     List<Widget> infoWidgets = [];
     if (settings.showStampAddress) {
       infoWidgets.add(
         Text(
           locationState.address ?? 'Getting address...',
-          style: baseStyle.copyWith(
+          style: getTextStyle(
             color: Colors.white,
             fontSize: settings.boldAddress ? 16.0 : 13.0,
             fontWeight: settings.boldAddress
@@ -772,7 +807,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
             Expanded(
               child: Text(
                 locationState.formattedCoordinates ?? 'Getting location...',
-                style: baseStyle.copyWith(color: Colors.white70, fontSize: 11),
+                style: getTextStyle(color: Colors.white70, fontSize: 11),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -786,7 +821,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen> {
       infoWidgets.add(
         Text(
           '$dateStr  $timeStr',
-          style: baseStyle.copyWith(color: Colors.white60, fontSize: 11),
+          style: getTextStyle(color: Colors.white60, fontSize: 11),
         ),
       );
     }
@@ -990,14 +1025,14 @@ class PhotoViewScreen extends StatelessWidget {
 }
 
 // Video View Screen
-class VideoViewScreen extends ConsumerStatefulWidget {
+class VideoViewScreen extends StatefulWidget {
   final String videoPath;
   const VideoViewScreen({super.key, required this.videoPath});
   @override
-  ConsumerState<VideoViewScreen> createState() => _VideoViewScreenState();
+  State<VideoViewScreen> createState() => _VideoViewScreenState();
 }
 
-class _VideoViewScreenState extends ConsumerState<VideoViewScreen> {
+class _VideoViewScreenState extends State<VideoViewScreen> {
   late VideoPlayerController _videoController;
   bool _isInitialized = false;
   String? _gpsData;
@@ -1037,23 +1072,6 @@ class _VideoViewScreenState extends ConsumerState<VideoViewScreen> {
     } catch (_) {}
   }
 
-  TextStyle _getGoogleFont(String family) {
-    switch (family) {
-      case 'Montserrat':
-        return GoogleFonts.montserrat();
-      case 'Playfair Display':
-        return GoogleFonts.playfairDisplay();
-      case 'Poppins':
-        return GoogleFonts.poppins();
-      case 'Inter':
-        return GoogleFonts.inter();
-      case 'Raleway':
-        return GoogleFonts.raleway();
-      default:
-        return GoogleFonts.montserrat();
-    }
-  }
-
   @override
   void dispose() {
     _videoController.dispose();
@@ -1062,9 +1080,6 @@ class _VideoViewScreenState extends ConsumerState<VideoViewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.read(SettingsNotifier.provider);
-    final fontStyle = _getGoogleFont(settings.fontFamily);
-
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -1155,7 +1170,7 @@ class _VideoViewScreenState extends ConsumerState<VideoViewScreen> {
                         ),
                         child: Text(
                           _gpsData!,
-                          style: fontStyle.copyWith(
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
                           ),
