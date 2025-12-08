@@ -1,15 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/settings_provider.dart'; // NEW IMPORT
+import 'package:google_fonts/google_fonts.dart';
+import '../providers/settings_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
-  // CHANGED: ConsumerWidget
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(SettingsNotifier.provider); // WATCH settings
-    final notifier = ref.read(SettingsNotifier.provider.notifier); // NOTIFIER
+    final settings = ref.watch(SettingsNotifier.provider);
+    final notifier = ref.read(SettingsNotifier.provider.notifier);
+
+    final List<String> fonts = [
+      'Montserrat',
+      'Playfair Display',
+      'Poppins',
+      'Inter',
+      'Raleway',
+    ];
+
+    TextStyle getFontStyle(String family) {
+      switch (family) {
+        case 'Montserrat':
+          return GoogleFonts.montserrat();
+        case 'Playfair Display':
+          return GoogleFonts.playfairDisplay();
+        case 'Poppins':
+          return GoogleFonts.poppins();
+        case 'Inter':
+          return GoogleFonts.inter();
+        case 'Raleway':
+          return GoogleFonts.raleway();
+        default:
+          return GoogleFonts.montserrat();
+      }
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -59,7 +84,7 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.showStampAddress,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateShowAddress(value); // RIVERPOD UPDATE
+              notifier.updateShowAddress(value);
             },
           ),
           SwitchListTile(
@@ -74,9 +99,70 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.boldAddress,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateBoldAddress(value); // RIVERPOD UPDATE
+              notifier.updateBoldAddress(value);
             },
           ),
+
+          // FONT SELECTION (NEW)
+          Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(top: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey[900],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Font Style',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[800],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: settings.fontFamily,
+                      isExpanded: true,
+                      dropdownColor: Colors.grey[900],
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      icon: const Icon(
+                        Icons.arrow_drop_down,
+                        color: Colors.amber,
+                      ),
+                      items: fonts.map((String font) {
+                        return DropdownMenuItem<String>(
+                          value: font,
+                          child: Text(
+                            font,
+                            style: getFontStyle(
+                              font,
+                            ).copyWith(color: Colors.white),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          notifier.updateFontFamily(newValue);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // Font Size Section
           Container(
             padding: const EdgeInsets.all(16),
@@ -114,7 +200,7 @@ class SettingsScreen extends ConsumerWidget {
             groupValue: settings.fontSize,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateFontSize(value!); // RIVERPOD UPDATE
+              notifier.updateFontSize(value!);
             },
           ),
           RadioListTile<String>(
@@ -133,7 +219,7 @@ class SettingsScreen extends ConsumerWidget {
             groupValue: settings.fontSize,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateFontSize(value!); // RIVERPOD UPDATE
+              notifier.updateFontSize(value!);
             },
           ),
           RadioListTile<String>(
@@ -146,7 +232,7 @@ class SettingsScreen extends ConsumerWidget {
             groupValue: settings.fontSize,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateFontSize(value!); // RIVERPOD UPDATE
+              notifier.updateFontSize(value!);
             },
           ),
           SwitchListTile(
@@ -161,7 +247,7 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.showStampCoordinates,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateShowCoordinates(value); // RIVERPOD UPDATE
+              notifier.updateShowCoordinates(value);
             },
           ),
           SwitchListTile(
@@ -176,7 +262,7 @@ class SettingsScreen extends ConsumerWidget {
             value: settings.showStampDateTime,
             activeColor: Colors.amber,
             onChanged: (value) {
-              notifier.updateShowDateTime(value); // RIVERPOD UPDATE
+              notifier.updateShowDateTime(value);
             },
           ),
           const SizedBox(height: 24),

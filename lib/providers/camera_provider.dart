@@ -27,7 +27,7 @@ class CameraState {
   final double minExposure;
   final double maxExposure;
   final String? lastMediaPath;
-  
+
   // Custom Status for UI
   final String? statusMessage;
 
@@ -99,7 +99,9 @@ class CameraNotifier extends StateNotifier<CameraState> {
   }
 
   // Provider definition
-  static final provider = StateNotifierProvider<CameraNotifier, CameraState>((ref) {
+  static final provider = StateNotifierProvider<CameraNotifier, CameraState>((
+    ref,
+  ) {
     final notifier = CameraNotifier(ref);
     ref.onDispose(() {
       notifier.disposeController();
@@ -178,25 +180,33 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
     final newIndex = (state.selectedCameraIndex + 1) % state.cameras!.length;
     await state.controller?.dispose(); // Dispose old before creating new
-    
+
     state = state.copyWith(
-        isInitialized: false, 
-        selectedCameraIndex: newIndex,
-        controller: null // Avoid using disposed controller
+      isInitialized: false,
+      selectedCameraIndex: newIndex,
+      controller: null, // Avoid using disposed controller
     );
 
     await _initController(state.cameras![newIndex]);
   }
 
   Future<void> toggleFlash() async {
-     if (state.controller == null || !state.isInitialized) return;
+    if (state.controller == null || !state.isInitialized) return;
 
     FlashMode newMode;
     switch (state.flashMode) {
-      case FlashMode.off: newMode = FlashMode.auto; break;
-      case FlashMode.auto: newMode = FlashMode.always; break;
-      case FlashMode.always: newMode = FlashMode.torch; break;
-      case FlashMode.torch: newMode = FlashMode.off; break;
+      case FlashMode.off:
+        newMode = FlashMode.auto;
+        break;
+      case FlashMode.auto:
+        newMode = FlashMode.always;
+        break;
+      case FlashMode.always:
+        newMode = FlashMode.torch;
+        break;
+      case FlashMode.torch:
+        newMode = FlashMode.off;
+        break;
     }
 
     await state.controller!.setFlashMode(newMode);
@@ -218,13 +228,13 @@ class CameraNotifier extends StateNotifier<CameraState> {
   }
 
   Future<void> setFocusPoint(Offset point) async {
-     if (state.controller == null || !state.isInitialized) return;
-     try {
-       await state.controller!.setFocusPoint(point);
-       await state.controller!.setExposurePoint(point);
-     } catch(e) {
-       print('Error setting focus: $e');
-     }
+    if (state.controller == null || !state.isInitialized) return;
+    try {
+      await state.controller!.setFocusPoint(point);
+      await state.controller!.setExposurePoint(point);
+    } catch (e) {
+      print('Error setting focus: $e');
+    }
   }
 
   Future<void> takePhoto() async {
@@ -233,7 +243,7 @@ class CameraNotifier extends StateNotifier<CameraState> {
     try {
       final image = await state.controller!.takePicture();
       final cameraDir = await _getCameraDirectory();
-      
+
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
       final filename = 'IMG_$timestamp.jpg';
       final savedPath = '${cameraDir.path}/$filename';
@@ -248,17 +258,17 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
       state = state.copyWith(
         lastMediaPath: savedPath,
-        statusMessage: 'Photo saved: $filename'
+        statusMessage: 'Photo saved: $filename',
       );
-      
-      // Clear status message after a delay? Or let UI handle it. 
+
+      // Clear status message after a delay? Or let UI handle it.
       // For now, UI can listen to changes.
     } catch (e) {
       state = state.copyWith(error: 'Failed to capture photo: $e');
     }
   }
 
-   Future<void> toggleVideoRecording() async {
+  Future<void> toggleVideoRecording() async {
     if (state.controller == null || !state.isInitialized) return;
 
     if (state.isRecording) {
@@ -274,16 +284,16 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
         await File(video.path).copy(savedPath);
 
-         final locationState = ref.read(LocationNotifier.provider);
-         if (locationState.isInitialized) {
-           await _saveVideoGpsData(savedPath);
-         }
+        final locationState = ref.read(LocationNotifier.provider);
+        if (locationState.isInitialized) {
+          await _saveVideoGpsData(savedPath);
+        }
 
         state = state.copyWith(
           isRecording: false,
           recordingDuration: Duration.zero,
           lastMediaPath: savedPath,
-          statusMessage: 'Video saved: $filename' 
+          statusMessage: 'Video saved: $filename',
         );
       } catch (e) {
         state = state.copyWith(error: 'Failed to stop video: $e');
@@ -292,50 +302,61 @@ class CameraNotifier extends StateNotifier<CameraState> {
       // START
       try {
         await state.controller!.startVideoRecording();
-        state = state.copyWith(isRecording: true, recordingDuration: Duration.zero);
-        
+        state = state.copyWith(
+          isRecording: true,
+          recordingDuration: Duration.zero,
+        );
+
         _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          state = state.copyWith(recordingDuration: state.recordingDuration + const Duration(seconds: 1));
+          state = state.copyWith(
+            recordingDuration:
+                state.recordingDuration + const Duration(seconds: 1),
+          );
         });
       } catch (e) {
-         state = state.copyWith(error: 'Failed to start video: $e');
+        state = state.copyWith(error: 'Failed to start video: $e');
       }
     }
   }
 
   // --- Helper Methods ---
 
-   // --- Helper Methods ---
+  // --- Helper Methods ---
 
   Future<Directory> _getCameraDirectory() async {
-     if (Platform.isAndroid) {
-        final dcimDir = Directory('/storage/emulated/0/DCIM/GPSCamera');
-        if (!await dcimDir.exists()) {
-          await dcimDir.create(recursive: true);
-        }
-        return dcimDir;
-      } else {
-        final appDir = await getApplicationDocumentsDirectory();
-        final dir = Directory('${appDir.path}/Camera');
-        if (!await dir.exists()) {
-          await dir.create(recursive: true);
-        }
-        return dir;
+    if (Platform.isAndroid) {
+      final dcimDir = Directory('/storage/emulated/0/DCIM/GPSCamera');
+      if (!await dcimDir.exists()) {
+        await dcimDir.create(recursive: true);
       }
+      return dcimDir;
+    } else {
+      final appDir = await getApplicationDocumentsDirectory();
+      final dir = Directory('${appDir.path}/Camera');
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      return dir;
+    }
   }
 
   Future<void> _loadLastMedia() async {
     try {
       final dir = await _getCameraDirectory();
       if (!dir.existsSync()) return;
-      
-      final files = dir.listSync()
+
+      final files = dir
+          .listSync()
           .whereType<File>()
-          .where((file) => file.path.endsWith('.jpg') || file.path.endsWith('.mp4'))
+          .where(
+            (file) => file.path.endsWith('.jpg') || file.path.endsWith('.mp4'),
+          )
           .toList();
 
       if (files.isNotEmpty) {
-        files.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+        files.sort(
+          (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+        );
         state = state.copyWith(lastMediaPath: files.first.path);
       }
     } catch (e) {
@@ -405,7 +426,9 @@ class CameraNotifier extends StateNotifier<CameraState> {
 
       if (settings.showStampDateTime) {
         final dt = "$dateStr $timeStr $timezone";
-        stampLines.addAll(_wrapByPixelWidth(dt, maxPixelWidth, approxCharWidth));
+        stampLines.addAll(
+          _wrapByPixelWidth(dt, maxPixelWidth, approxCharWidth),
+        );
       }
 
       // Each text line height based on selected font
@@ -501,12 +524,18 @@ class CameraNotifier extends StateNotifier<CameraState> {
       final int centerY = imageHeight + overlayHeight - 35;
 
       // Draw final bold, centered watermark
-      _drawBoldString(finalImage, watermark, x: centerX, y: centerY, font: img.arial14, color: img.ColorRgb8(255, 255, 255));
+      _drawBoldString(
+        finalImage,
+        watermark,
+        x: centerX,
+        y: centerY,
+        font: img.arial14,
+        color: img.ColorRgb8(255, 255, 255),
+      );
 
       // Save image
       final outBytes = img.encodeJpg(finalImage);
       await imageFile.writeAsBytes(outBytes);
-
     } catch (e) {
       print("ERROR adding overlay: $e");
     }
@@ -549,7 +578,7 @@ class CameraNotifier extends StateNotifier<CameraState> {
       print(' GPS SAVE ERROR: $e');
     }
   }
-  
+
   // Defines wrapping logic
   List<String> _wrapByPixelWidth(
     String text,

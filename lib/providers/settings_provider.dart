@@ -7,6 +7,7 @@ class Settings {
   final bool showStampDateTime;
   final bool boldAddress;
   final String fontSize;
+  final String fontFamily;
 
   const Settings({
     this.showStampAddress = true,
@@ -14,6 +15,7 @@ class Settings {
     this.showStampDateTime = true,
     this.boldAddress = false,
     this.fontSize = 'medium',
+    this.fontFamily = 'Montserrat',
   });
 
   Settings copyWith({
@@ -22,6 +24,7 @@ class Settings {
     bool? showStampDateTime,
     bool? boldAddress,
     String? fontSize,
+    String? fontFamily,
   }) {
     return Settings(
       showStampAddress: showStampAddress ?? this.showStampAddress,
@@ -29,6 +32,7 @@ class Settings {
       showStampDateTime: showStampDateTime ?? this.showStampDateTime,
       boldAddress: boldAddress ?? this.boldAddress,
       fontSize: fontSize ?? this.fontSize,
+      fontFamily: fontFamily ?? this.fontFamily,
     );
   }
 }
@@ -50,6 +54,7 @@ class SettingsNotifier extends StateNotifier<Settings> {
       showStampDateTime: prefs.getBool('showStampDateTime') ?? true,
       boldAddress: prefs.getBool('boldAddress') ?? false,
       fontSize: prefs.getString('fontSize') ?? 'medium',
+      fontFamily: prefs.getString('fontFamily') ?? 'Montserrat',
     );
   }
 
@@ -81,5 +86,11 @@ class SettingsNotifier extends StateNotifier<Settings> {
     state = state.copyWith(fontSize: value);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('fontSize', value);
+  }
+
+  Future<void> updateFontFamily(String value) async {
+    state = state.copyWith(fontFamily: value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('fontFamily', value);
   }
 }
