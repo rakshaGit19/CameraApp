@@ -1025,14 +1025,14 @@ class PhotoViewScreen extends StatelessWidget {
 }
 
 // Video View Screen
-class VideoViewScreen extends StatefulWidget {
+class VideoViewScreen extends ConsumerStatefulWidget {
   final String videoPath;
   const VideoViewScreen({super.key, required this.videoPath});
   @override
-  State<VideoViewScreen> createState() => _VideoViewScreenState();
+  ConsumerState<VideoViewScreen> createState() => _VideoViewScreenState();
 }
 
-class _VideoViewScreenState extends State<VideoViewScreen> {
+class _VideoViewScreenState extends ConsumerState<VideoViewScreen> {
   late VideoPlayerController _videoController;
   bool _isInitialized = false;
   String? _gpsData;
@@ -1168,12 +1168,75 @@ class _VideoViewScreenState extends State<VideoViewScreen> {
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.white24, width: 1),
                         ),
-                        child: Text(
-                          _gpsData!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                          ),
+                        child: Builder(
+                          builder: (context) {
+                            final settings = ref.watch(
+                              SettingsNotifier.provider,
+                            );
+
+                            // Map settings to font style
+                            TextStyle getTextStyle() {
+                              TextStyle baseStyle = const TextStyle(
+                                color: Colors.white,
+                              );
+
+                              switch (settings.fontFamily) {
+                                case 'Montserrat':
+                                  baseStyle = GoogleFonts.montserrat(
+                                    textStyle: baseStyle,
+                                  );
+                                  break;
+                                case 'Playfair Display':
+                                  baseStyle = GoogleFonts.playfairDisplay(
+                                    textStyle: baseStyle,
+                                  );
+                                  break;
+                                case 'Poppins':
+                                  baseStyle = GoogleFonts.poppins(
+                                    textStyle: baseStyle,
+                                  );
+                                  break;
+                                case 'Inter':
+                                  baseStyle = GoogleFonts.inter(
+                                    textStyle: baseStyle,
+                                  );
+                                  break;
+                                case 'Raleway':
+                                  baseStyle = GoogleFonts.raleway(
+                                    textStyle: baseStyle,
+                                  );
+                                  break;
+                                default:
+                                  baseStyle = GoogleFonts.montserrat(
+                                    textStyle: baseStyle,
+                                  );
+                              }
+
+                              // Map size
+                              double fontSize;
+                              switch (settings.fontSize) {
+                                case 'small':
+                                  fontSize = 12.0;
+                                  break;
+                                case 'large':
+                                  fontSize = 20.0;
+                                  break;
+                                case 'medium':
+                                default:
+                                  fontSize = 16.0;
+                                  break;
+                              }
+
+                              return baseStyle.copyWith(
+                                fontSize: fontSize,
+                                fontWeight: settings.boldAddress
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              );
+                            }
+
+                            return Text(_gpsData!, style: getTextStyle());
+                          },
                         ),
                       ),
                     ),

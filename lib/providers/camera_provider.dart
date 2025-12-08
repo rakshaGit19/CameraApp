@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:image/image.dart' as img;
+import 'package:google_fonts/google_fonts.dart';
 import '../providers/settings_provider.dart';
 import '../providers/location_provider.dart';
 
@@ -364,16 +368,16 @@ class CameraNotifier extends StateNotifier<CameraState> {
     }
   }
 
-  // --- GPS Overlay Logic ---
+  // --- GPS Overlay Logic with Custom Font Support ---
 
   Future<void> _addGpsOverlay(File imageFile) async {
     try {
-      // Read image bytes
+      // Read original image
       final bytes = await imageFile.readAsBytes();
       img.Image? originalImage = img.decodeImage(bytes);
       if (originalImage == null) return;
 
-      // Get location + settings from Riverpod
+      // Get settings and location
       final settings = ref.read(SettingsNotifier.provider);
       final locationState = ref.read(LocationNotifier.provider);
 
@@ -383,161 +387,198 @@ class CameraNotifier extends StateNotifier<CameraState> {
       final timeStr = DateFormat('hh:mm a').format(now);
       final timezone = 'GMT +05:30';
 
-      // Image sizes
-      final imageWidth = originalImage.width;
-      final imageHeight = originalImage.height;
+      // Build text lines based on settings
+      List<String> textLines = [];
+      if (settings.showStampAddress) textLines.add(address);
+      if (settings.showStampCoordinates) {
+        textLines.add(locationState.formattedCoordinates ?? 'N/A');
+      }
+      if (settings.showStampDateTime) {
+        textLines.add('$dateStr $timeStr $timezone');
+      }
 
-      // Map Flutter font selection to image-text pixel size
-      int fontPixel;
+      if (textLines.isEmpty) {
+        // No overlay needed
+        return;
+      }
+
+      // Create overlay image using Flutter rendering
+      final overlayBytes = await _renderTextOverlay(
+        textLines,
+        originalImage.width,
+        settings,
+      );
+
+      if (overlayBytes == null) {
+        // Fallback to original method if rendering fails
+        print('Custom font rendering failed, using fallback');
+        return;
+      }
+
+      // Decode the rendered overlay
+      final overlayImage = img.decodeImage(overlayBytes);
+      if (overlayImage == null) return;
+
+      // Combine original image with overlay
+      final combinedHeight = originalImage.height + overlayImage.height;
+      final combined = img.Image(
+        width: originalImage.width,
+        height: combinedHeight,
+      );
+
+      // Draw original image at top
+      img.compositeImage(combined, originalImage, dstX: 0, dstY: 0);
+
+      // Draw overlay at bottom
+      img.compositeImage(
+        combined,
+        overlayImage,
+        dstX: 0,
+        dstY: originalImage.height,
+      );
+
+      // Save the combined image
+      final outBytes = img.encodeJpg(combined);
+      await imageFile.writeAsBytes(outBytes);
+    } catch (e) {
+      print("ERROR adding overlay: $e");
+    }
+  }
+
+  // Render text overlay using Flutter's rendering engine with custom fonts
+  Future<Uint8List?> _renderTextOverlay(
+    List<String> textLines,
+    int imageWidth,
+    Settings settings,
+  ) async {
+    try {
+      // Map font size setting to pixel size
+      double fontSize;
       switch (settings.fontSize) {
         case 'small':
-          fontPixel = 14;
+          fontSize = 14.0;
           break;
         case 'large':
-          fontPixel = 48;
+          fontSize = 48.0;
           break;
         case 'medium':
         default:
-          fontPixel = 24;
+          fontSize = 24.0;
           break;
       }
 
-      // Approximate character width in pixels
-      final double approxCharWidth = fontPixel * 0.55;
-
-      // Max usable width inside the box (left + right padding = 60px each)
-      final double maxPixelWidth = (imageWidth - 120).toDouble();
-
-      // Collect stamp lines (wrapped)
-      final List<String> stampLines = [];
-
-      if (settings.showStampAddress) {
-        stampLines.addAll(
-          _wrapByPixelWidth(address, maxPixelWidth, approxCharWidth),
-        );
+      // Get the appropriate Google Font
+      TextStyle Function({TextStyle? textStyle}) fontGetter;
+      switch (settings.fontFamily) {
+        case 'Montserrat':
+          fontGetter = GoogleFonts.montserrat;
+          break;
+        case 'Playfair Display':
+          fontGetter = GoogleFonts.playfairDisplay;
+          break;
+        case 'Poppins':
+          fontGetter = GoogleFonts.poppins;
+          break;
+        case 'Inter':
+          fontGetter = GoogleFonts.inter;
+          break;
+        case 'Raleway':
+          fontGetter = GoogleFonts.raleway;
+          break;
+        default:
+          fontGetter = GoogleFonts.montserrat;
+          break;
       }
 
-      if (settings.showStampCoordinates) {
-        final coords = locationState.formattedCoordinates ?? 'N/A';
-        stampLines.addAll(
-          _wrapByPixelWidth(coords, maxPixelWidth, approxCharWidth),
+      // Create text style
+      final textStyle = fontGetter(
+        textStyle: TextStyle(
+          fontSize: fontSize,
+          color: Colors.white,
+          fontWeight: settings.boldAddress
+              ? FontWeight.bold
+              : FontWeight.normal,
+        ),
+      );
+
+      // Calculate overlay height
+      final lineHeight = fontSize * 1.5;
+      final padding = 20.0;
+      final overlayHeight = (padding * 2 + textLines.length * lineHeight + 60)
+          .toInt();
+
+      // Create a picture recorder
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      // Draw black background
+      final paint = Paint()..color = Colors.black;
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, imageWidth.toDouble(), overlayHeight.toDouble()),
+        paint,
+      );
+
+      // Draw white border
+      final borderPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawRect(
+        Rect.fromLTRB(40, 10, imageWidth - 40.0, overlayHeight - 10.0),
+        borderPaint,
+      );
+
+      // Draw text lines
+      double yPosition = padding + 10;
+      for (int i = 0; i < textLines.length; i++) {
+        final textSpan = TextSpan(
+          text: textLines[i],
+          style: i == 0 && settings.boldAddress && settings.showStampAddress
+              ? textStyle.copyWith(fontWeight: FontWeight.w900)
+              : textStyle,
         );
-      }
 
-      if (settings.showStampDateTime) {
-        final dt = "$dateStr $timeStr $timezone";
-        stampLines.addAll(
-          _wrapByPixelWidth(dt, maxPixelWidth, approxCharWidth),
+        final textPainter = TextPainter(
+          text: textSpan,
+          textDirection: ui.TextDirection.ltr,
+          maxLines: 1,
         );
-      }
 
-      // Each text line height based on selected font
-      final int lineHeight = fontPixel + 12;
-
-      // Total overlay box height
-      final overlayHeight = (20 + stampLines.length * lineHeight + 60);
-
-      // Create final image with bottom extension
-      img.Image finalImage = img.Image(
-        width: imageWidth,
-        height: imageHeight + overlayHeight,
-      );
-
-      // Place original image at top
-      img.compositeImage(finalImage, originalImage, dstX: 0, dstY: 0);
-
-      // Draw black rectangle background
-      img.fillRect(
-        finalImage,
-        x1: 0,
-        y1: imageHeight,
-        x2: imageWidth,
-        y2: imageHeight + overlayHeight,
-        color: img.ColorRgb8(0, 0, 0),
-      );
-
-      // Draw border with left-right padding
-      img.drawRect(
-        finalImage,
-        x1: 40,
-        y1: imageHeight + 10,
-        x2: imageWidth - 40,
-        y2: imageHeight + overlayHeight - 10,
-        color: img.ColorRgb8(255, 255, 255),
-        thickness: 2,
-      );
-
-      // Starting position for text
-      int yPosition = imageHeight + 20;
-
-      // Image font
-      final dynamic font = _getFontSize(settings.fontSize);
-
-      // Wrap length for address detection (for bold)
-      final addressWrapped = _wrapByPixelWidth(
-        address,
-        maxPixelWidth,
-        approxCharWidth,
-      );
-      final int addressLineCount = settings.showStampAddress
-          ? addressWrapped.length
-          : 0;
-
-      // Draw each line
-      for (int i = 0; i < stampLines.length; i++) {
-        final line = stampLines[i];
-
-        final bool isAddressLine =
-            i < addressLineCount && settings.showStampAddress;
-
-        if (isAddressLine && settings.boldAddress) {
-          _drawBoldString(
-            finalImage,
-            line,
-            x: 60,
-            y: yPosition,
-            font: font,
-            color: img.ColorRgb8(255, 255, 255),
-          );
-        } else {
-          img.drawString(
-            finalImage,
-            line,
-            font: font,
-            x: 60,
-            y: yPosition,
-            color: img.ColorRgb8(255, 255, 255),
-          );
-        }
+        textPainter.layout(maxWidth: imageWidth - 120.0);
+        textPainter.paint(canvas, Offset(60, yPosition));
 
         yPosition += lineHeight;
       }
 
-      // WATERMARK
-      final watermark = "RV";
-
-      // Approximate text width (Arial 14)
-      final double watermarkWidth = watermark.length * 8.0;
-
-      // Calculate center alignment
-      final int centerX = ((imageWidth - watermarkWidth) / 2).round();
-      final int centerY = imageHeight + overlayHeight - 35;
-
-      // Draw final bold, centered watermark
-      _drawBoldString(
-        finalImage,
-        watermark,
-        x: centerX,
-        y: centerY,
-        font: img.arial14,
-        color: img.ColorRgb8(255, 255, 255),
+      // Draw watermark
+      final watermarkStyle = GoogleFonts.montserrat(
+        textStyle: const TextStyle(
+          fontSize: 14,
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
       );
 
-      // Save image
-      final outBytes = img.encodeJpg(finalImage);
-      await imageFile.writeAsBytes(outBytes);
+      final watermarkSpan = TextSpan(text: 'RV', style: watermarkStyle);
+      final watermarkPainter = TextPainter(
+        text: watermarkSpan,
+        textDirection: ui.TextDirection.ltr,
+      );
+
+      watermarkPainter.layout();
+      final watermarkX = (imageWidth - watermarkPainter.width) / 2;
+      final watermarkY = overlayHeight - 35.0;
+      watermarkPainter.paint(canvas, Offset(watermarkX, watermarkY));
+
+      // Convert to image
+      final picture = recorder.endRecording();
+      final image = await picture.toImage(imageWidth, overlayHeight);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      return byteData?.buffer.asUint8List();
     } catch (e) {
-      print("ERROR adding overlay: $e");
+      print('Error rendering text overlay: $e');
+      return null;
     }
   }
 
@@ -577,55 +618,5 @@ class CameraNotifier extends StateNotifier<CameraState> {
     } catch (e) {
       print(' GPS SAVE ERROR: $e');
     }
-  }
-
-  // Defines wrapping logic
-  List<String> _wrapByPixelWidth(
-    String text,
-    double maxPxWidth,
-    double charWidth,
-  ) {
-    final words = text.split(' ');
-    List<String> lines = [];
-    String current = "";
-
-    for (final word in words) {
-      final test = current.isEmpty ? word : "$current $word";
-      final testWidth = test.length * charWidth;
-
-      if (testWidth <= maxPxWidth) {
-        current = test;
-      } else {
-        lines.add(current);
-        current = word;
-      }
-    }
-    if (current.isNotEmpty) lines.add(current);
-    return lines;
-  }
-
-  dynamic _getFontSize(String size) {
-    switch (size) {
-      case 'small':
-        return img.arial14;
-      case 'large':
-        return img.arial48;
-      case 'medium':
-      default:
-        return img.arial24;
-    }
-  }
-
-  void _drawBoldString(
-    img.Image target,
-    String text, {
-    required int x,
-    required int y,
-    required dynamic font,
-    required dynamic color,
-  }) {
-    img.drawString(target, text, font: font, x: x, y: y, color: color);
-    img.drawString(target, text, font: font, x: x + 1, y: y, color: color);
-    img.drawString(target, text, font: font, x: x, y: y + 1, color: color);
   }
 }
